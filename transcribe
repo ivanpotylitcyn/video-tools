@@ -32,6 +32,20 @@
 # участков речи из лога whisper. Эти границы (в шкале исходного файла) тоже
 # сохраняются в JSON, в поле "speech".
 #
+# Замены. После распознавания текст правится по спискам «замены.txt»: общему
+# (рядом со скриптом) и проектным — скрипт ищет файл в папке клипа и во всех
+# папках выше, так что его можно положить в video/ или video/src проекта.
+# Формат строки: «неверно -> верно» или «вариант | вариант -> верно»,
+# # — комментарий. Заменяются целые слова. txt и srt собираются из JSON,
+# исходный текст whisper остаётся в JSON в поле "text_raw". Поэтому замены
+# применяются и к готовым расшифровкам: поправил список — запусти скрипт
+# снова, whisper при этом не запускается.
+#
+# Субтитры. Сегмент whisper длиннее 7 с или 90 знаков режется на куски по
+# таймкодам токенов: по концам предложений, затем по запятым и словам. Края
+# кусков подрезаются по участкам речи VAD. JSON при этом не меняется: нарезка,
+# как и замены, делается при сборке txt/srt (postprocess.py, cut_segment).
+#
 # Клипы без звуковой дорожки (slow-mo, таймлапсы) пропускаются. Отдельные
 # звуковые файлы рядом (.AAC у slow-mo Pocket 3) не используются: их
 # таймкоды не совпадают с замедленным видео.
@@ -55,6 +69,9 @@ FORCE=0
 DRY=0
 MODEL="${WHISPER_MODEL:-$HOME/whisper-models/ggml-large-v3-turbo.bin}"
 VAD_MODEL="${VAD_MODEL:-$HOME/whisper-models/ggml-silero-v6.2.0.bin}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+POST="$SCRIPT_DIR/postprocess.py"
+GLOBAL_RULES="$SCRIPT_DIR/замены.txt"
 VIDEO_EXT="mp4 mov m4v mkv mts mxf avi"
 
 usage() { sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'; }
@@ -78,6 +95,7 @@ for bin in ffmpeg ffprobe whisper-cli python3; do
   command -v "$bin" >/dev/null 2>&1 || { echo "Нет $bin (см. «Установка» в README)" >&2; missing=1; }
 done
 [ -f "$MODEL" ] || { echo "Нет модели: $MODEL" >&2; missing=1; }
+[ -f "$POST" ] || { echo "Нет $POST" >&2; missing=1; }
 [ -f "$VAD_MODEL" ] || { echo "Нет модели VAD: $VAD_MODEL" >&2; missing=1; }
 [ $missing -eq 0 ] || exit 1
 
@@ -108,57 +126,34 @@ find_wav() {
 
 duration() { ffprobe -v error -show_entries format=duration -of csv=p=0 "$1" 2>/dev/null | cut -d. -f1; }
 
-# Пересчёт таймкодов токенов в JSON из шкалы «только речь» в шкалу исходного
-# файла — так же, как это делает whisper_full_get_token_t0/t1 в библиотеке.
-# $1 — JSON whisper-cli, $2 — его лог (stderr, без -np).
-fix_vad_json() {
-  python3 -I - "$1" "$2" <<'PY'
-import json, re, sys
+# Пересчёт таймкодов токенов после VAD (баг whisper-cli 1.9.5, см. выше).
+fix_vad_json() { python3 -I "$POST" vad "$1" "$2"; }
 
-json_path, log_path = sys.argv[1], sys.argv[2]
-pat = re.compile(r"vad_segment_info: orig_start: ([\d.]+), orig_end: ([\d.]+), "
-                 r"vad_start: ([\d.]+), vad_end: ([\d.]+)")
-segs = []  # (orig_start, orig_end, vad_start, vad_end), сотые доли секунды
-with open(log_path, encoding="utf-8", errors="replace") as f:
-    for line in f:
-        m = pat.search(line)
-        if m:
-            segs.append(tuple(round(float(x) * 100) for x in m.groups()))
+# Применить замены и собрать txt/srt из JSON. $1 — видео (пути через
+# clip_paths), $2 — пусто или --check. Печатает число замен.
+render() {
+  python3 -I "$POST" render "$JSON" "$TXT" "$SRT" \
+    --global "$GLOBAL_RULES" --dir "$(dirname "$1")" ${2:+"$2"}
+}
 
-with open(json_path, encoding="utf-8") as f:
-    d = json.load(f)
-if d["transcription"] and not segs:
-    sys.exit("в логе whisper нет границ VAD, таймкоды токенов не пересчитать")
-
-def to_orig(t):
-    if t <= segs[0][2]:
-        return segs[0][0]
-    if t >= segs[-1][3]:
-        return segs[-1][1]
-    for i, (os_, oe, vs, ve) in enumerate(segs):
-        if vs <= t <= ve:
-            return os_ + (t - vs) * (oe - os_) // (ve - vs) if ve > vs else os_
-        if i + 1 < len(segs) and ve < t < segs[i + 1][2]:
-            return oe if t <= (ve + segs[i + 1][2]) // 2 else segs[i + 1][0]
-    return t
-
-def stamp(cs):
-    ms = cs * 10
-    return "%02d:%02d:%02d,%03d" % (ms // 3600000, ms // 60000 % 60, ms // 1000 % 60, ms % 1000)
-
-for seg in d["transcription"]:
-    for tok in seg.get("tokens", []):
-        if "offsets" not in tok:
-            continue
-        t0 = to_orig(tok["offsets"]["from"] // 10)
-        t1 = max(to_orig(tok["offsets"]["to"] // 10), t0 + 1)
-        tok["offsets"] = {"from": t0 * 10, "to": t1 * 10}
-        tok["timestamps"] = {"from": stamp(t0), "to": stamp(t1)}
-
-d["speech"] = [{"offsets": {"from": s[0] * 10, "to": s[1] * 10}} for s in segs]
-with open(json_path, "w", encoding="utf-8") as f:
-    json.dump(d, f, ensure_ascii=False, indent="\t")
-PY
+# Прогресс-бар одного клипа из строк «progress = N%» whisper-cli (-pp).
+# Читает stderr whisper, всё пишет в лог $1, полоску рисует в терминал.
+progress_bar() {
+  local log="$1" line p w=30 t0=$SECONDS bar rest eta
+  while IFS= read -r line; do
+    printf '%s\n' "$line"
+    case "$line" in *"progress ="*) ;; *) continue ;; esac
+    [ -t 2 ] || continue
+    p="${line##*= }"; p="${p%\%}"; p="${p// /}"
+    case "$p" in ''|*[!0-9]*) continue ;; esac
+    bar="$(printf '%*s' $(( p * w / 100 )) '')"; bar="${bar// /█}"
+    rest="$(printf '%*s' $(( w - p * w / 100 )) '')"; rest="${rest// /░}"
+    eta=""
+    [ "$p" -gt 0 ] && [ "$p" -lt 100 ] && eta="  ещё ~$(fmt_time $(( (SECONDS - t0) * (100 - p) / p )))"
+    printf '\r\033[K      %s%s %3d%%%s' "$bar" "$rest" "$p" "$eta" >&2
+  done > "$log"
+  [ -t 2 ] && printf '\r\033[K' >&2
+  return 0
 }
 
 fmt_time() {
@@ -178,52 +173,84 @@ list_dirs() {
   { echo "$1"; find "$1" -mindepth 1 \( -type d -name '.*' -prune \) -o \( -type d -print \); } | sort
 }
 
-# --- обработка одного видео ------------------------------------------------
-process() {
-  local video="$1"
-  local dir name stem wavbase txt srt json
-  dir="$(cd "$(dirname "$video")" && pwd)"
-  name="$(basename "$video")"
-  stem="${name%.*}"
+# --- проход 1: план --------------------------------------------------------
+# Пути результатов для видео $1 → переменные NAME TXT SRT JSON WAVBASE.
+clip_paths() {
+  local dir stem
+  dir="$(cd "$(dirname "$1")" && pwd)"
+  NAME="$(basename "$1")"; stem="${NAME%.*}"
+  WAVBASE="$dir/audio/$stem"
+  TXT="$dir/txt/$stem.txt"; SRT="$dir/srt/$stem.srt"; JSON="$dir/json/$stem.json"
+}
 
-  wavbase="$dir/audio/$stem"
-  txt="$dir/txt/$stem.txt"; srt="$dir/srt/$stem.srt"; json="$dir/json/$stem.json"
+# Решает судьбу клипа и ставит его в очередь. $1 — видео, $2 — корень
+# аргумента (для печати), $3 — путь относительно корня.
+# Печатает строку о клипе только с -n; ошибки — всегда.
+plan_clip() {
+  local video="$1" root="$2" rel="$3" wav fmt source dur
+  clip_paths "$video"
 
   # txt и srt бывают пустыми законно: в клипе нет речи.
-  if [ $FORCE -eq 0 ] && [ -f "$txt" ] && [ -f "$srt" ] && [ -s "$json" ]; then
-    echo "  = $name — уже расшифрован"
-    SKIPPED=$((SKIPPED + 1))
+  if [ $FORCE -eq 0 ] && [ -f "$TXT" ] && [ -f "$SRT" ] && [ -s "$JSON" ]; then
+    SKIPPED=$((SKIPPED + 1)); D_SKIP=$((D_SKIP + 1))
+    if render "$video" --check >/dev/null; then
+      [ $DRY -eq 1 ] && echo "  = $NAME — уже расшифрован"
+    else
+      [ $DRY -eq 1 ] && echo "  = $NAME — уже расшифрован, txt/srt пересоберутся"
+      printf "%s\n" "$video" >> "$RERENDER"
+    fi
     return 0
   fi
 
   if ! has_audio "$video"; then
-    echo "  - $name — в видео нет звука, пропускаю"
-    NOAUDIO=$((NOAUDIO + 1))
+    [ $DRY -eq 1 ] && echo "  - $NAME — в видео нет звука, пропускаю"
+    NOAUDIO=$((NOAUDIO + 1)); D_NOAUDIO=$((D_NOAUDIO + 1))
     return 0
   fi
 
   # Звук: либо наш готовый WAV 16 кГц моно, либо извлечь из видео.
-  local wav source
-  wav="$(find_wav "$wavbase")"
+  wav="$(find_wav "$WAVBASE")"
   if [ -n "$wav" ]; then
-    local fmt
     fmt="$(ffprobe -v error -select_streams a:0 -show_entries stream=codec_name,sample_rate,channels -of csv=p=0 "$wav")"
     if [ "$fmt" != "pcm_s16le,16000,1" ]; then
-      echo "  ! $name — имя занято чужим файлом $wav ($fmt), не перезаписываю" >&2
-      return 1
+      echo "  ! $NAME — имя занято чужим файлом $wav ($fmt), не перезаписываю" >&2
+      FAILED=$((FAILED + 1)); fail=1
+      return 0
     fi
     source="звук уже извлечён"
   else
-    wav="$wavbase.wav"
     source="звук из видео"
   fi
 
-  local dur; dur="$(duration "$video")"; dur="${dur:-0}"
-  echo "  > $name ($(fmt_time "$dur"), $source)"
-  TODO=$((TODO + 1)); TODO_SEC=$((TODO_SEC + dur))
-  [ $DRY -eq 1 ] && return 0
+  dur="$(duration "$video")"; dur="${dur:-0}"
+  [ $DRY -eq 1 ] && echo "  > $NAME ($(fmt_time "$dur"), $source)"
+  printf "%s\t%s\t%s\t%s\n" "$dur" "$root" "$rel" "$video" >> "$QUEUE"
+  TODO=$((TODO + 1)); TODO_SEC=$((TODO_SEC + dur)); D_TODO=$((D_TODO + 1))
+}
 
-  mkdir -p "$(dirname "$wav")" "$(dirname "$txt")" "$(dirname "$srt")" "$(dirname "$json")"
+plan_dir() {
+  local dir="$1" root="$2" videos count v
+  videos="$(list_videos "$dir")"
+  [ -n "$videos" ] || return 0
+  count=$(printf "%s\n" "$videos" | wc -l | tr -d ' ')
+  FOUND=$((FOUND + count))
+  D_TODO=0 D_SKIP=0 D_NOAUDIO=0
+  [ $DRY -eq 1 ] && echo "$dir: видео $count"
+  while IFS= read -r v; do
+    plan_clip "$v" "$root" "${v#"$root"/}" </dev/null
+  done <<< "$videos"
+  [ $DRY -eq 1 ] || echo "$dir: видео $count — к расшифровке $D_TODO, готово $D_SKIP, без звука $D_NOAUDIO"
+}
+
+# --- проход 2: распознавание -----------------------------------------------
+# $1 — видео. Возвращает 1 при ошибке.
+transcribe_clip() {
+  local video="$1" wav out="$TMP/out"
+  REPL=0
+  clip_paths "$video"
+  wav="$(find_wav "$WAVBASE")"; wav="${wav:-$WAVBASE.wav}"
+
+  mkdir -p "$(dirname "$wav")" "$(dirname "$TXT")" "$(dirname "$SRT")" "$(dirname "$JSON")"
 
   if [ ! -f "$wav" ]; then
     ffmpeg -hide_banner -loglevel error -nostdin -y -i "$video" -map 0:a:0 \
@@ -232,60 +259,86 @@ process() {
       || { echo "    ! не удалось извлечь звук" >&2; rm -f "$wav.part.wav"; return 1; }
   fi
 
-  # Распознавание: результаты сначала во временную папку, потом на место.
-  local out="$TMP/out" t0=$SECONDS
+  # Результаты сначала во временную папку, потом на место.
   # Без -np: из лога нужны границы участков речи (vad_segment_info).
+  # txt и srt собирает render из JSON — уже с заменами.
   local args=(-m "$MODEL" -l "$LANG_CODE" -f "$wav" --vad -vm "$VAD_MODEL"
-              -otxt -osrt -ojf -of "$out")
-  [ -n "$PROMPT" ] && args+=(--prompt "$PROMPT")
+              -pp -ojf -of "$out")
+  # --carry-initial-prompt: подсказка действует на весь клип, а не только
+  # на первые минуту-две, пока её не вытеснит распознанный текст.
+  [ -n "$PROMPT" ] && args+=(--prompt "$PROMPT" --carry-initial-prompt)
   rm -f "$out".*
-  whisper-cli "${args[@]}" >/dev/null 2>"$TMP/whisper.log" \
+  whisper-cli "${args[@]}" 2>&1 >/dev/null | progress_bar "$TMP/whisper.log"
+  [ "${PIPESTATUS[0]}" -eq 0 ] \
     || { echo "    ! whisper-cli завершился с ошибкой:" >&2; tail -5 "$TMP/whisper.log" >&2; return 1; }
   fix_vad_json "$out.json" "$TMP/whisper.log" \
     || { echo "    ! не удалось пересчитать таймкоды токенов" >&2; return 1; }
 
-  mv "$out.txt" "$txt" && mv "$out.srt" "$srt" && mv "$out.json" "$json" \
+  mv "$out.json" "$JSON" \
     || { echo "    ! не удалось сохранить результаты" >&2; return 1; }
-  echo "    готово за $(( SECONDS - t0 )) с"
-  DONE=$((DONE + 1))
+  REPL="$(render "$video")" \
+    || { echo "    ! не удалось применить замены и собрать txt/srt" >&2; return 1; }
 }
 
 # --- обход аргументов ------------------------------------------------------
-# Видео одной папки; возвращает 1, если хоть один клип не удался.
-process_dir() {
-  local dir="$1" videos count v rc=0
-  videos="$(list_videos "$dir")"
-  [ -n "$videos" ] || return 0
-  count=$(printf "%s\n" "$videos" | wc -l | tr -d ' ')
-  FOUND=$((FOUND + count))
-  echo "$dir: видео $count"
-  while IFS= read -r v; do
-    process "$v" </dev/null || { rc=1; FAILED=$((FAILED + 1)); }
-  done <<< "$videos"
-  return $rc
-}
-
 fail=0 FOUND=0 DONE=0 SKIPPED=0 NOAUDIO=0 FAILED=0 TODO=0 TODO_SEC=0
+D_TODO=0 D_SKIP=0 D_NOAUDIO=0
+QUEUE="$TMP/queue"; : > "$QUEUE"
+RERENDER="$TMP/rerender"; : > "$RERENDER"
+
 for arg in "$@"; do
   arg="${arg%/}"; arg="${arg:-/}"
   if [ -d "$arg" ]; then
     before=$FOUND
     while IFS= read -r d; do
-      process_dir "$d" || fail=1
+      plan_dir "$d" "$arg"
     done < <(list_dirs "$arg")
     [ $FOUND -gt $before ] || echo "$arg: видео не найдено"
   elif [ -f "$arg" ]; then
     FOUND=$((FOUND + 1))
-    process "$arg" </dev/null || { fail=1; FAILED=$((FAILED + 1)); }
+    plan_clip "$arg" "$(dirname "$arg")" "$(basename "$arg")" </dev/null
   else
     echo "$arg: нет такого файла или папки" >&2; fail=1
   fi
 done
 
 echo
-if [ $DRY -eq 1 ]; then
-  echo "План: расшифровать $TODO ($(fmt_time $TODO_SEC) видео), уже готово $SKIPPED, без звука $NOAUDIO, ошибок $FAILED"
-else
-  echo "Итого: расшифровано $DONE, уже было $SKIPPED, без звука $NOAUDIO, ошибок $FAILED"
+NRE=$(wc -l < "$RERENDER" | tr -d ' ')
+echo "План: расшифровать $TODO ($(fmt_time $TODO_SEC) видео), уже готово $SKIPPED (пересоберутся txt/srt: $NRE), без звука $NOAUDIO, ошибок $FAILED"
+[ $DRY -eq 1 ] && exit $fail
+
+# Готовые клипы, у которых изменятся txt/srt (списки замен, правила
+# нарезки): whisper не нужен.
+if [ "$NRE" -gt 0 ]; then
+  while IFS= read -r video; do
+    clip_paths "$video"
+    render "$video" >/dev/null </dev/null \
+      || { echo "  ! $NAME — не удалось пересобрать txt/srt" >&2; FAILED=$((FAILED + 1)); fail=1; }
+  done < "$RERENDER"
+  echo "Пересобраны txt/srt готовых клипов: $NRE"
 fi
+
+n=0 done_sec=0 t_start=$SECONDS last_root=""
+while IFS=$'\t' read -r dur root rel video; do
+  n=$((n + 1))
+  if [ "$root" != "$last_root" ]; then echo; echo "$root"; last_root="$root"; fi
+  echo "  [$n/$TODO] $rel ($(fmt_time "$dur"))"
+  t0=$SECONDS
+  if transcribe_clip "$video" </dev/null; then
+    DONE=$((DONE + 1)); status="за $((SECONDS - t0)) с"
+    [ "${REPL:-0}" -gt 0 ] && status="$status, замен $REPL"
+  else
+    FAILED=$((FAILED + 1)); fail=1; status="ОШИБКА"
+  fi
+  done_sec=$((done_sec + dur))
+  left=$((TODO - n)); left_sec=$((TODO_SEC - done_sec)); elapsed=$((SECONDS - t_start))
+  eta=""
+  if [ $left -gt 0 ] && [ $done_sec -gt 0 ] && [ $elapsed -gt 0 ]; then
+    eta=", ещё ~$(fmt_time $(( left_sec * elapsed / done_sec )))"
+  fi
+  echo "      $status · готово $n из $TODO, $(fmt_time $done_sec) из $(fmt_time $TODO_SEC) видео · осталось $left, $(fmt_time $left_sec)$eta"
+done < "$QUEUE"
+
+echo
+echo "Итого: расшифровано $DONE за $(fmt_time $((SECONDS - t_start))), уже было $SKIPPED, без звука $NOAUDIO, ошибок $FAILED"
 exit $fail
