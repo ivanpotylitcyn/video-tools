@@ -1,0 +1,291 @@
+#!/bin/bash
+# transcribe — офлайн-расшифровка видео: ffmpeg + whisper.cpp, без сети.
+#
+# Использование (из корня репозитория video-tools):
+#   ./transcribe [опции] ПАПКА|ФАЙЛ [...]
+#
+# Папка обходится рекурсивно: можно передать сразу video/src проекта или даже
+# несколько проектов. Расшифровка кладётся в каждую папку, где лежит видео.
+#
+# Примеры:
+#   ./transcribe -n "/Volumes/potylitcyn/2026/10.11 - Спутник/video/src"   # план
+#   ./transcribe -p "Привет, друзья! На связи Иван Потылицын." .../video/src
+#   ./transcribe -n /Volumes/potylitcyn/2026/*/video/src    # все проекты года
+#
+# Раскладка результатов (в каждой папке с видео, всегда одинаковая):
+#   камера/клип.MP4
+#   камера/audio/клип.wav     звук из видео, WAV 16 кГц моно
+#   камера/txt/клип.txt
+#   камера/srt/клип.srt
+#   камера/json/клип.json
+#
+# Звук всегда берётся из видео (дорожка с микрофона) и сохраняется как WAV
+# 16 кГц моно — формат, на котором обучен Whisper. Папка audio, а не wav:
+# в wav/ камера DJI кладёт свои WAV с теми же именами, а exFAT не различает
+# регистр, так что клип.wav перезаписал бы клип.WAV. Чужой WAV скрипт не
+# трогает никогда: если имя занято файлом другого формата — останавливается.
+#
+# Перед распознаванием работает VAD (Silero): Whisper получает только участки
+# с речью и не выдумывает текст на тишине. Таймкоды сегментов whisper-cli
+# возвращает в шкалу исходного файла сам, а таймкоды токенов в JSON — нет
+# (баг whisper-cli 1.9.5), поэтому скрипт пересчитывает их по границам
+# участков речи из лога whisper. Эти границы (в шкале исходного файла) тоже
+# сохраняются в JSON, в поле "speech".
+#
+# Клипы без звуковой дорожки (slow-mo, таймлапсы) пропускаются. Отдельные
+# звуковые файлы рядом (.AAC у slow-mo Pocket 3) не используются: их
+# таймкоды не совпадают с замедленным видео.
+#
+# Опции:
+#   -l ЯЗЫК       язык речи (по умолчанию ru; auto — определить)
+#   -p ТЕКСТ      подсказка whisper: термины, имена, стиль пунктуации
+#   -f            пересчитать, даже если расшифровка уже есть
+#   -n            только показать, что будет сделано
+#   -h            эта справка
+#
+# Переменные окружения:
+#   WHISPER_MODEL путь к модели (по умолчанию ~/whisper-models/ggml-large-v3-turbo.bin)
+#   VAD_MODEL     путь к модели VAD (по умолчанию ~/whisper-models/ggml-silero-v6.2.0.bin)
+
+set -u
+
+LANG_CODE="ru"
+PROMPT=""
+FORCE=0
+DRY=0
+MODEL="${WHISPER_MODEL:-$HOME/whisper-models/ggml-large-v3-turbo.bin}"
+VAD_MODEL="${VAD_MODEL:-$HOME/whisper-models/ggml-silero-v6.2.0.bin}"
+VIDEO_EXT="mp4 mov m4v mkv mts mxf avi"
+
+usage() { sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'; }
+
+while getopts "l:p:fnh" opt; do
+  case "$opt" in
+    l) LANG_CODE="$OPTARG" ;;
+    p) PROMPT="$OPTARG" ;;
+    f) FORCE=1 ;;
+    n) DRY=1 ;;
+    h) usage; exit 0 ;;
+    *) usage; exit 2 ;;
+  esac
+done
+shift $((OPTIND - 1))
+[ $# -ge 1 ] || { usage; exit 2; }
+
+# --- проверка инструментов -------------------------------------------------
+missing=0
+for bin in ffmpeg ffprobe whisper-cli python3; do
+  command -v "$bin" >/dev/null 2>&1 || { echo "Нет $bin (см. «Установка» в README)" >&2; missing=1; }
+done
+[ -f "$MODEL" ] || { echo "Нет модели: $MODEL" >&2; missing=1; }
+[ -f "$VAD_MODEL" ] || { echo "Нет модели VAD: $VAD_MODEL" >&2; missing=1; }
+[ $missing -eq 0 ] || exit 1
+
+TMP="$(mktemp -d "${TMPDIR:-/tmp}/transcribe.XXXXXX")"
+trap 'rm -rf "$TMP"' EXIT
+trap 'echo; echo "Прервано." >&2; exit 130' INT TERM
+
+shopt -s nullglob nocaseglob
+
+# Видео в папке (без служебных ._ файлов exFAT), по одному на строку.
+list_videos() {
+  local dir="$1" ext f
+  for ext in $VIDEO_EXT; do
+    for f in "$dir"/*."$ext"; do
+      case "$(basename "$f")" in ._*) continue ;; esac
+      [ -f "$f" ] && echo "$f"
+    done
+  done | sort -u
+}
+
+# Существующий файл base.wav с любым регистром расширения.
+find_wav() {
+  local base="$1" f
+  for f in "$base".[wW][aA][vV]; do
+    [ -f "$f" ] && { echo "$f"; return; }
+  done
+}
+
+duration() { ffprobe -v error -show_entries format=duration -of csv=p=0 "$1" 2>/dev/null | cut -d. -f1; }
+
+# Пересчёт таймкодов токенов в JSON из шкалы «только речь» в шкалу исходного
+# файла — так же, как это делает whisper_full_get_token_t0/t1 в библиотеке.
+# $1 — JSON whisper-cli, $2 — его лог (stderr, без -np).
+fix_vad_json() {
+  python3 -I - "$1" "$2" <<'PY'
+import json, re, sys
+
+json_path, log_path = sys.argv[1], sys.argv[2]
+pat = re.compile(r"vad_segment_info: orig_start: ([\d.]+), orig_end: ([\d.]+), "
+                 r"vad_start: ([\d.]+), vad_end: ([\d.]+)")
+segs = []  # (orig_start, orig_end, vad_start, vad_end), сотые доли секунды
+with open(log_path, encoding="utf-8", errors="replace") as f:
+    for line in f:
+        m = pat.search(line)
+        if m:
+            segs.append(tuple(round(float(x) * 100) for x in m.groups()))
+
+with open(json_path, encoding="utf-8") as f:
+    d = json.load(f)
+if d["transcription"] and not segs:
+    sys.exit("в логе whisper нет границ VAD, таймкоды токенов не пересчитать")
+
+def to_orig(t):
+    if t <= segs[0][2]:
+        return segs[0][0]
+    if t >= segs[-1][3]:
+        return segs[-1][1]
+    for i, (os_, oe, vs, ve) in enumerate(segs):
+        if vs <= t <= ve:
+            return os_ + (t - vs) * (oe - os_) // (ve - vs) if ve > vs else os_
+        if i + 1 < len(segs) and ve < t < segs[i + 1][2]:
+            return oe if t <= (ve + segs[i + 1][2]) // 2 else segs[i + 1][0]
+    return t
+
+def stamp(cs):
+    ms = cs * 10
+    return "%02d:%02d:%02d,%03d" % (ms // 3600000, ms // 60000 % 60, ms // 1000 % 60, ms % 1000)
+
+for seg in d["transcription"]:
+    for tok in seg.get("tokens", []):
+        if "offsets" not in tok:
+            continue
+        t0 = to_orig(tok["offsets"]["from"] // 10)
+        t1 = max(to_orig(tok["offsets"]["to"] // 10), t0 + 1)
+        tok["offsets"] = {"from": t0 * 10, "to": t1 * 10}
+        tok["timestamps"] = {"from": stamp(t0), "to": stamp(t1)}
+
+d["speech"] = [{"offsets": {"from": s[0] * 10, "to": s[1] * 10}} for s in segs]
+with open(json_path, "w", encoding="utf-8") as f:
+    json.dump(d, f, ensure_ascii=False, indent="\t")
+PY
+}
+
+fmt_time() {
+  if [ "$1" -ge 3600 ]; then
+    printf "%d:%02d:%02d" $(( $1 / 3600 )) $(( $1 % 3600 / 60 )) $(( $1 % 60 ))
+  else
+    printf "%d:%02d" $(( $1 / 60 )) $(( $1 % 60 ))
+  fi
+}
+
+has_audio() {
+  [ -n "$(ffprobe -v error -select_streams a:0 -show_entries stream=index -of csv=p=0 "$1" 2>/dev/null)" ]
+}
+
+# Все папки внутри $1 (включая её саму), без скрытых и служебных ._ папок.
+list_dirs() {
+  { echo "$1"; find "$1" -mindepth 1 \( -type d -name '.*' -prune \) -o \( -type d -print \); } | sort
+}
+
+# --- обработка одного видео ------------------------------------------------
+process() {
+  local video="$1"
+  local dir name stem wavbase txt srt json
+  dir="$(cd "$(dirname "$video")" && pwd)"
+  name="$(basename "$video")"
+  stem="${name%.*}"
+
+  wavbase="$dir/audio/$stem"
+  txt="$dir/txt/$stem.txt"; srt="$dir/srt/$stem.srt"; json="$dir/json/$stem.json"
+
+  # txt и srt бывают пустыми законно: в клипе нет речи.
+  if [ $FORCE -eq 0 ] && [ -f "$txt" ] && [ -f "$srt" ] && [ -s "$json" ]; then
+    echo "  = $name — уже расшифрован"
+    SKIPPED=$((SKIPPED + 1))
+    return 0
+  fi
+
+  if ! has_audio "$video"; then
+    echo "  - $name — в видео нет звука, пропускаю"
+    NOAUDIO=$((NOAUDIO + 1))
+    return 0
+  fi
+
+  # Звук: либо наш готовый WAV 16 кГц моно, либо извлечь из видео.
+  local wav source
+  wav="$(find_wav "$wavbase")"
+  if [ -n "$wav" ]; then
+    local fmt
+    fmt="$(ffprobe -v error -select_streams a:0 -show_entries stream=codec_name,sample_rate,channels -of csv=p=0 "$wav")"
+    if [ "$fmt" != "pcm_s16le,16000,1" ]; then
+      echo "  ! $name — имя занято чужим файлом $wav ($fmt), не перезаписываю" >&2
+      return 1
+    fi
+    source="звук уже извлечён"
+  else
+    wav="$wavbase.wav"
+    source="звук из видео"
+  fi
+
+  local dur; dur="$(duration "$video")"; dur="${dur:-0}"
+  echo "  > $name ($(fmt_time "$dur"), $source)"
+  TODO=$((TODO + 1)); TODO_SEC=$((TODO_SEC + dur))
+  [ $DRY -eq 1 ] && return 0
+
+  mkdir -p "$(dirname "$wav")" "$(dirname "$txt")" "$(dirname "$srt")" "$(dirname "$json")"
+
+  if [ ! -f "$wav" ]; then
+    ffmpeg -hide_banner -loglevel error -nostdin -y -i "$video" -map 0:a:0 \
+      -vn -ar 16000 -ac 1 -c:a pcm_s16le "$wav.part.wav" \
+      && mv "$wav.part.wav" "$wav" \
+      || { echo "    ! не удалось извлечь звук" >&2; rm -f "$wav.part.wav"; return 1; }
+  fi
+
+  # Распознавание: результаты сначала во временную папку, потом на место.
+  local out="$TMP/out" t0=$SECONDS
+  # Без -np: из лога нужны границы участков речи (vad_segment_info).
+  local args=(-m "$MODEL" -l "$LANG_CODE" -f "$wav" --vad -vm "$VAD_MODEL"
+              -otxt -osrt -ojf -of "$out")
+  [ -n "$PROMPT" ] && args+=(--prompt "$PROMPT")
+  rm -f "$out".*
+  whisper-cli "${args[@]}" >/dev/null 2>"$TMP/whisper.log" \
+    || { echo "    ! whisper-cli завершился с ошибкой:" >&2; tail -5 "$TMP/whisper.log" >&2; return 1; }
+  fix_vad_json "$out.json" "$TMP/whisper.log" \
+    || { echo "    ! не удалось пересчитать таймкоды токенов" >&2; return 1; }
+
+  mv "$out.txt" "$txt" && mv "$out.srt" "$srt" && mv "$out.json" "$json" \
+    || { echo "    ! не удалось сохранить результаты" >&2; return 1; }
+  echo "    готово за $(( SECONDS - t0 )) с"
+  DONE=$((DONE + 1))
+}
+
+# --- обход аргументов ------------------------------------------------------
+# Видео одной папки; возвращает 1, если хоть один клип не удался.
+process_dir() {
+  local dir="$1" videos count v rc=0
+  videos="$(list_videos "$dir")"
+  [ -n "$videos" ] || return 0
+  count=$(printf "%s\n" "$videos" | wc -l | tr -d ' ')
+  FOUND=$((FOUND + count))
+  echo "$dir: видео $count"
+  while IFS= read -r v; do
+    process "$v" </dev/null || { rc=1; FAILED=$((FAILED + 1)); }
+  done <<< "$videos"
+  return $rc
+}
+
+fail=0 FOUND=0 DONE=0 SKIPPED=0 NOAUDIO=0 FAILED=0 TODO=0 TODO_SEC=0
+for arg in "$@"; do
+  arg="${arg%/}"; arg="${arg:-/}"
+  if [ -d "$arg" ]; then
+    before=$FOUND
+    while IFS= read -r d; do
+      process_dir "$d" || fail=1
+    done < <(list_dirs "$arg")
+    [ $FOUND -gt $before ] || echo "$arg: видео не найдено"
+  elif [ -f "$arg" ]; then
+    FOUND=$((FOUND + 1))
+    process "$arg" </dev/null || { fail=1; FAILED=$((FAILED + 1)); }
+  else
+    echo "$arg: нет такого файла или папки" >&2; fail=1
+  fi
+done
+
+echo
+if [ $DRY -eq 1 ]; then
+  echo "План: расшифровать $TODO ($(fmt_time $TODO_SEC) видео), уже готово $SKIPPED, без звука $NOAUDIO, ошибок $FAILED"
+else
+  echo "Итого: расшифровано $DONE, уже было $SKIPPED, без звука $NOAUDIO, ошибок $FAILED"
+fi
+exit $fail
