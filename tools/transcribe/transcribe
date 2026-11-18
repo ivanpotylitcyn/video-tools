@@ -2,15 +2,15 @@
 # transcribe — офлайн-расшифровка видео: ffmpeg + whisper.cpp, без сети.
 #
 # Использование (из корня репозитория video-tools):
-#   ./transcribe [опции] ПАПКА|ФАЙЛ [...]
+#   bash tools/transcribe/transcribe [опции] ПАПКА|ФАЙЛ [...]
 #
 # Папка обходится рекурсивно: можно передать сразу video/src проекта или даже
 # несколько проектов. Расшифровка кладётся в каждую папку, где лежит видео.
 #
 # Примеры:
-#   ./transcribe -n "/Volumes/potylitcyn/2026/10.11 - Спутник/video/src"   # план
-#   ./transcribe -p "Привет, друзья! На связи Иван Потылицын." .../video/src
-#   ./transcribe -n /Volumes/potylitcyn/2026/*/video/src    # все проекты года
+#   bash tools/transcribe/transcribe -n "/путь/к/проекту/video/src"   # план
+#   bash tools/transcribe/transcribe -p "Привет, друзья! На связи Иван Потылицын." .../video/src
+#   bash tools/transcribe/transcribe -n /путь/к/проектам/*/video/src    # все проекты года
 #
 # Раскладка результатов (в каждой папке с видео, всегда одинаковая):
 #   камера/клип.MP4

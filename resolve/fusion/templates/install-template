@@ -1,0 +1,51 @@
+#!/bin/bash
+# Internal helper: SOURCE CATEGORY [destination-directory]. Bash 3.2 compatible.
+set -eu
+if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
+    echo 'Usage: install-template SOURCE CATEGORY [destination-directory]' >&2
+    exit 2
+fi
+source_file=$1
+category=$2
+case "$category" in
+    Effects|Generators|Titles|Transitions) ;;
+    *) echo "Unknown template category: $category" >&2; exit 2 ;;
+esac
+if [ ! -s "$source_file" ]; then
+    echo "Missing template: $source_file" >&2
+    exit 1
+fi
+if [ "$#" -eq 3 ]; then
+    target_dir=$3
+else
+    case "$(uname -s)" in
+        Darwin)
+            target_dir="$HOME/Library/Application Support/Blackmagic Design/DaVinci Resolve/Fusion/Templates/Edit/$category/vt"
+            ;;
+        *)
+            echo 'Default installation is configured for macOS only.' >&2
+            echo 'Pass a destination directory explicitly; other platforms are not verified.' >&2
+            exit 2
+            ;;
+    esac
+fi
+if [ -z "$target_dir" ]; then
+    echo 'Destination directory must not be empty.' >&2
+    exit 2
+fi
+# An absolute link also works when the destination is elsewhere.
+source_dir=$(cd "$(dirname "$source_file")" && pwd -P)
+source_file="$source_dir/$(basename "$source_file")"
+target_file="$target_dir/$(basename "$source_file")"
+if [ -L "$target_file" ] && [ "$target_file" -ef "$source_file" ]; then
+    echo "Already connected: $target_file"
+    exit 0
+fi
+if [ -e "$target_file" ] || [ -L "$target_file" ]; then
+    echo "Destination is occupied; nothing changed: $target_file" >&2
+    exit 1
+fi
+mkdir -p "$target_dir"
+ln -s "$source_file" "$target_file"
+echo "Connected: $target_file"
+echo 'Restart Resolve. Existing timeline instances keep their own copy.'

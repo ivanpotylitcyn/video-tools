@@ -1,0 +1,421 @@
+{
+  Tools = ordered() {
+    TypeDrift = GroupOperator {
+      CtrlWZoom = false,
+      Inputs = ordered() {
+Input1 = InstanceInput { SourceOp = "Phrase", Source = "StyledText", Name = "Text", Page = "Text", },
+Input2 = InstanceInput { SourceOp = "Phrase", Source = "Font", Name = "Font", Page = "Text", ControlGroup = 1, },
+Input3 = InstanceInput { SourceOp = "Phrase", Source = "Style", Name = "Style", Page = "Text", ControlGroup = 1, },
+Input4 = InstanceInput { SourceOp = "Phrase", Source = "Size", Name = "Text size", Page = "Text", },
+Input5 = InstanceInput { SourceOp = "Phrase", Source = "Thickness1", Name = "Outline thickness", Page = "Text", },
+Input6 = InstanceInput { SourceOp = "Canvas", Source = "RepeatSpacing", Name = "Repeat spacing", Page = "Text", },
+Input7 = InstanceInput { SourceOp = "Canvas", Source = "RowSpacing", Name = "Row spacing", Page = "Text", },
+Input8 = InstanceInput { SourceOp = "Tilt", Source = "ZRotation", Name = "Angle", Page = "Text", },
+Input9 = InstanceInput { SourceOp = "Ink", Source = "TopLeftRed", Name = "Text color", Page = "Look", ControlGroup = 2, },
+Input10 = InstanceInput { SourceOp = "Ink", Source = "TopLeftGreen", Name = "Text color", Page = "Look", ControlGroup = 2, },
+Input11 = InstanceInput { SourceOp = "Ink", Source = "TopLeftBlue", Name = "Text color", Page = "Look", ControlGroup = 2, },
+Input12 = InstanceInput { SourceOp = "Canvas", Source = "TopLeftRed", Name = "Background", Page = "Look", ControlGroup = 3, },
+Input13 = InstanceInput { SourceOp = "Canvas", Source = "TopLeftGreen", Name = "Background", Page = "Look", ControlGroup = 3, },
+Input14 = InstanceInput { SourceOp = "Canvas", Source = "TopLeftBlue", Name = "Background", Page = "Look", ControlGroup = 3, },
+Input15 = InstanceInput { SourceOp = "Grain", Source = "MasterStrength", Name = "Grain strength", Page = "Look", },
+Input16 = InstanceInput { SourceOp = "Grain", Source = "MasterXSize", Name = "Grain size", Page = "Look", },
+Input17 = InstanceInput { SourceOp = "Canvas", Source = "Speed", Name = "Speed (widths / second)", Page = "Motion", },
+Input18 = InstanceInput { SourceOp = "Canvas", Source = "CenterRate", Name = "Center multiplier", Page = "Motion", },
+Input19 = InstanceInput { SourceOp = "Canvas", Source = "Above1Rate", Name = "Above 1 multiplier", Page = "Motion", },
+Input20 = InstanceInput { SourceOp = "Canvas", Source = "Below1Rate", Name = "Below 1 multiplier", Page = "Motion", },
+Input21 = InstanceInput { SourceOp = "Canvas", Source = "Above2Rate", Name = "Above 2 multiplier", Page = "Motion", },
+Input22 = InstanceInput { SourceOp = "Canvas", Source = "Below2Rate", Name = "Below 2 multiplier", Page = "Motion", },
+Input23 = InstanceInput { SourceOp = "Canvas", Source = "Above3Rate", Name = "Above 3 multiplier", Page = "Motion", },
+Input24 = InstanceInput { SourceOp = "Canvas", Source = "Below3Rate", Name = "Below 3 multiplier", Page = "Motion", },
+Input25 = InstanceInput { SourceOp = "Canvas", Source = "Above4Rate", Name = "Above 4 multiplier", Page = "Motion", },
+Input26 = InstanceInput { SourceOp = "Canvas", Source = "Below4Rate", Name = "Below 4 multiplier", Page = "Motion", },
+Input27 = InstanceInput { SourceOp = "Canvas", Source = "Above5Rate", Name = "Above 5 multiplier", Page = "Motion", },
+Input28 = InstanceInput { SourceOp = "Canvas", Source = "Below5Rate", Name = "Below 5 multiplier", Page = "Motion", },
+Input29 = InstanceInput { SourceOp = "Canvas", Source = "Above6Rate", Name = "Above 6 multiplier", Page = "Motion", },
+Input30 = InstanceInput { SourceOp = "Canvas", Source = "Below6Rate", Name = "Below 6 multiplier", Page = "Motion", },
+      },
+      Outputs = {
+        MainOutput1 = InstanceOutput { SourceOp = "Grain", Source = "Output", },
+      },
+      ViewInfo = GroupInfo { Pos = { 0, 0 } },
+      Tools = ordered() {
+Canvas = Background {
+  Inputs = {
+    UseFrameFormatSettings = Input { Value = 1, },
+    TopLeftRed = Input { Value = 0, },
+    TopLeftGreen = Input { Value = 0, },
+    TopLeftBlue = Input { Value = 0, },
+    TopLeftAlpha = Input { Value = 1, },
+    Speed = Input { Value = 0.08, },
+    RepeatSpacing = Input { Value = 1.05, },
+    RowSpacing = Input { Value = 0.095, },
+    Below6Rate = Input { Value = -1.15, },
+    Below5Rate = Input { Value = 1.7, },
+    Below4Rate = Input { Value = -0.85, },
+    Below3Rate = Input { Value = 1.35, },
+    Below2Rate = Input { Value = 0.7, },
+    Below1Rate = Input { Value = -1.8, },
+    CenterRate = Input { Value = 0.2, },
+    Above1Rate = Input { Value = 1.6, },
+    Above2Rate = Input { Value = -0.75, },
+    Above3Rate = Input { Value = -1.4, },
+    Above4Rate = Input { Value = 0.9, },
+    Above5Rate = Input { Value = -1.65, },
+    Above6Rate = Input { Value = 1.1, },
+  },
+  ViewInfo = OperatorInfo { Pos = { 700, 200 } },
+  UserControls = ordered() {
+Speed = {
+  LINKID_DataType = "Number", INPID_InputControl = "SliderControl",
+  LINKS_Name = "Speed (widths / second)", INP_Default = 0.08,
+  INP_MinScale = 0, INP_MaxScale = 0.5,
+  INP_MinAllowed = 0, INP_MaxAllowed = 0.5,
+  INP_Integer = false,
+},
+RepeatSpacing = {
+  LINKID_DataType = "Number", INPID_InputControl = "SliderControl",
+  LINKS_Name = "Repeat spacing", INP_Default = 1.05,
+  INP_MinScale = 0.35, INP_MaxScale = 3,
+  INP_MinAllowed = 0.35, INP_MaxAllowed = 3,
+  INP_Integer = false,
+},
+RowSpacing = {
+  LINKID_DataType = "Number", INPID_InputControl = "SliderControl",
+  LINKS_Name = "Row spacing", INP_Default = 0.095,
+  INP_MinScale = 0.09, INP_MaxScale = 0.2,
+  INP_MinAllowed = 0.09, INP_MaxAllowed = 0.2,
+  INP_Integer = false,
+},
+Below6Rate = {
+  LINKID_DataType = "Number", INPID_InputControl = "SliderControl",
+  LINKS_Name = "Below6Rate", INP_Default = -1.15,
+  INP_MinScale = -4, INP_MaxScale = 4,
+  INP_MinAllowed = -4, INP_MaxAllowed = 4,
+  INP_Integer = false,
+},
+Below5Rate = {
+  LINKID_DataType = "Number", INPID_InputControl = "SliderControl",
+  LINKS_Name = "Below5Rate", INP_Default = 1.7,
+  INP_MinScale = -4, INP_MaxScale = 4,
+  INP_MinAllowed = -4, INP_MaxAllowed = 4,
+  INP_Integer = false,
+},
+Below4Rate = {
+  LINKID_DataType = "Number", INPID_InputControl = "SliderControl",
+  LINKS_Name = "Below4Rate", INP_Default = -0.85,
+  INP_MinScale = -4, INP_MaxScale = 4,
+  INP_MinAllowed = -4, INP_MaxAllowed = 4,
+  INP_Integer = false,
+},
+Below3Rate = {
+  LINKID_DataType = "Number", INPID_InputControl = "SliderControl",
+  LINKS_Name = "Below3Rate", INP_Default = 1.35,
+  INP_MinScale = -4, INP_MaxScale = 4,
+  INP_MinAllowed = -4, INP_MaxAllowed = 4,
+  INP_Integer = false,
+},
+Below2Rate = {
+  LINKID_DataType = "Number", INPID_InputControl = "SliderControl",
+  LINKS_Name = "Below2Rate", INP_Default = 0.7,
+  INP_MinScale = -4, INP_MaxScale = 4,
+  INP_MinAllowed = -4, INP_MaxAllowed = 4,
+  INP_Integer = false,
+},
+Below1Rate = {
+  LINKID_DataType = "Number", INPID_InputControl = "SliderControl",
+  LINKS_Name = "Below1Rate", INP_Default = -1.8,
+  INP_MinScale = -4, INP_MaxScale = 4,
+  INP_MinAllowed = -4, INP_MaxAllowed = 4,
+  INP_Integer = false,
+},
+CenterRate = {
+  LINKID_DataType = "Number", INPID_InputControl = "SliderControl",
+  LINKS_Name = "CenterRate", INP_Default = 0.2,
+  INP_MinScale = -4, INP_MaxScale = 4,
+  INP_MinAllowed = -4, INP_MaxAllowed = 4,
+  INP_Integer = false,
+},
+Above1Rate = {
+  LINKID_DataType = "Number", INPID_InputControl = "SliderControl",
+  LINKS_Name = "Above1Rate", INP_Default = 1.6,
+  INP_MinScale = -4, INP_MaxScale = 4,
+  INP_MinAllowed = -4, INP_MaxAllowed = 4,
+  INP_Integer = false,
+},
+Above2Rate = {
+  LINKID_DataType = "Number", INPID_InputControl = "SliderControl",
+  LINKS_Name = "Above2Rate", INP_Default = -0.75,
+  INP_MinScale = -4, INP_MaxScale = 4,
+  INP_MinAllowed = -4, INP_MaxAllowed = 4,
+  INP_Integer = false,
+},
+Above3Rate = {
+  LINKID_DataType = "Number", INPID_InputControl = "SliderControl",
+  LINKS_Name = "Above3Rate", INP_Default = -1.4,
+  INP_MinScale = -4, INP_MaxScale = 4,
+  INP_MinAllowed = -4, INP_MaxAllowed = 4,
+  INP_Integer = false,
+},
+Above4Rate = {
+  LINKID_DataType = "Number", INPID_InputControl = "SliderControl",
+  LINKS_Name = "Above4Rate", INP_Default = 0.9,
+  INP_MinScale = -4, INP_MaxScale = 4,
+  INP_MinAllowed = -4, INP_MaxAllowed = 4,
+  INP_Integer = false,
+},
+Above5Rate = {
+  LINKID_DataType = "Number", INPID_InputControl = "SliderControl",
+  LINKS_Name = "Above5Rate", INP_Default = -1.65,
+  INP_MinScale = -4, INP_MaxScale = 4,
+  INP_MinAllowed = -4, INP_MaxAllowed = 4,
+  INP_Integer = false,
+},
+Above6Rate = {
+  LINKID_DataType = "Number", INPID_InputControl = "SliderControl",
+  LINKS_Name = "Above6Rate", INP_Default = 1.1,
+  INP_MinScale = -4, INP_MaxScale = 4,
+  INP_MinAllowed = -4, INP_MaxAllowed = 4,
+  INP_Integer = false,
+},
+
+},
+},
+
+Phrase = sText {
+  Inputs = {
+    Center = Input { Value = { 0, 0 }, },
+    StyledText = Input { Value = "ivanpotylitcyn.ru", },
+    Font = Input { Value = "JetBrains Mono", },
+    Style = Input { Value = "ExtraBold", },
+    Size = Input { Value = 0.085, },
+    ElementShape1 = Input { Value = 1, },
+    Thickness1 = Input { Value = 0.012, },
+    VerticalJustificationNew = Input { Value = 3, },
+    HorizontalJustificationNew = Input { Value = 3, },
+  },
+  ViewInfo = OperatorInfo { Pos = { -800, 0 } },
+  
+},
+
+Copies = sDuplicate {
+  Inputs = {
+    Input = Input { SourceOp = "Phrase", Source = "Output", },
+    Copies = Input { Value = 12, },
+    TimeOffset = Input { Value = 0, },
+    XOffset = Input { Expression = "Canvas.RepeatSpacing", },
+    YOffset = Input { Value = 0, },
+    AxisMode = Input { Value = FuID { "Progressive" }, },
+  },
+  ViewInfo = OperatorInfo { Pos = { -600, 0 } },
+  
+},
+
+Row0 = sTransform {
+  Inputs = {
+    Input = Input { SourceOp = "Copies", Source = "Output", },
+    XOffset = Input { Expression = "((time-comp.RenderStart)/comp:GetPrefs(\"Comp.FrameFormat.Rate\")*Canvas.Speed*Canvas.Below6Rate+0.098*Canvas.RepeatSpacing)-floor(((time-comp.RenderStart)/comp:GetPrefs(\"Comp.FrameFormat.Rate\")*Canvas.Speed*Canvas.Below6Rate+0.098*Canvas.RepeatSpacing)/Canvas.RepeatSpacing)*Canvas.RepeatSpacing-6*Canvas.RepeatSpacing", },
+    YOffset = Input { Expression = "-6*Canvas.RowSpacing", },
+  },
+  ViewInfo = OperatorInfo { Pos = { -350, 330 } },
+  
+},
+
+Row1 = sTransform {
+  Inputs = {
+    Input = Input { SourceOp = "Copies", Source = "Output", },
+    XOffset = Input { Expression = "((time-comp.RenderStart)/comp:GetPrefs(\"Comp.FrameFormat.Rate\")*Canvas.Speed*Canvas.Below5Rate+0.415*Canvas.RepeatSpacing)-floor(((time-comp.RenderStart)/comp:GetPrefs(\"Comp.FrameFormat.Rate\")*Canvas.Speed*Canvas.Below5Rate+0.415*Canvas.RepeatSpacing)/Canvas.RepeatSpacing)*Canvas.RepeatSpacing-6*Canvas.RepeatSpacing", },
+    YOffset = Input { Expression = "-5*Canvas.RowSpacing", },
+  },
+  ViewInfo = OperatorInfo { Pos = { -350, 275 } },
+  
+},
+
+Row2 = sTransform {
+  Inputs = {
+    Input = Input { SourceOp = "Copies", Source = "Output", },
+    XOffset = Input { Expression = "((time-comp.RenderStart)/comp:GetPrefs(\"Comp.FrameFormat.Rate\")*Canvas.Speed*Canvas.Below4Rate+0.732*Canvas.RepeatSpacing)-floor(((time-comp.RenderStart)/comp:GetPrefs(\"Comp.FrameFormat.Rate\")*Canvas.Speed*Canvas.Below4Rate+0.732*Canvas.RepeatSpacing)/Canvas.RepeatSpacing)*Canvas.RepeatSpacing-6*Canvas.RepeatSpacing", },
+    YOffset = Input { Expression = "-4*Canvas.RowSpacing", },
+  },
+  ViewInfo = OperatorInfo { Pos = { -350, 220 } },
+  
+},
+
+Row3 = sTransform {
+  Inputs = {
+    Input = Input { SourceOp = "Copies", Source = "Output", },
+    XOffset = Input { Expression = "((time-comp.RenderStart)/comp:GetPrefs(\"Comp.FrameFormat.Rate\")*Canvas.Speed*Canvas.Below3Rate+0.049*Canvas.RepeatSpacing)-floor(((time-comp.RenderStart)/comp:GetPrefs(\"Comp.FrameFormat.Rate\")*Canvas.Speed*Canvas.Below3Rate+0.049*Canvas.RepeatSpacing)/Canvas.RepeatSpacing)*Canvas.RepeatSpacing-6*Canvas.RepeatSpacing", },
+    YOffset = Input { Expression = "-3*Canvas.RowSpacing", },
+  },
+  ViewInfo = OperatorInfo { Pos = { -350, 165 } },
+  
+},
+
+Row4 = sTransform {
+  Inputs = {
+    Input = Input { SourceOp = "Copies", Source = "Output", },
+    XOffset = Input { Expression = "((time-comp.RenderStart)/comp:GetPrefs(\"Comp.FrameFormat.Rate\")*Canvas.Speed*Canvas.Below2Rate+0.366*Canvas.RepeatSpacing)-floor(((time-comp.RenderStart)/comp:GetPrefs(\"Comp.FrameFormat.Rate\")*Canvas.Speed*Canvas.Below2Rate+0.366*Canvas.RepeatSpacing)/Canvas.RepeatSpacing)*Canvas.RepeatSpacing-6*Canvas.RepeatSpacing", },
+    YOffset = Input { Expression = "-2*Canvas.RowSpacing", },
+  },
+  ViewInfo = OperatorInfo { Pos = { -350, 110 } },
+  
+},
+
+Row5 = sTransform {
+  Inputs = {
+    Input = Input { SourceOp = "Copies", Source = "Output", },
+    XOffset = Input { Expression = "((time-comp.RenderStart)/comp:GetPrefs(\"Comp.FrameFormat.Rate\")*Canvas.Speed*Canvas.Below1Rate+0.683*Canvas.RepeatSpacing)-floor(((time-comp.RenderStart)/comp:GetPrefs(\"Comp.FrameFormat.Rate\")*Canvas.Speed*Canvas.Below1Rate+0.683*Canvas.RepeatSpacing)/Canvas.RepeatSpacing)*Canvas.RepeatSpacing-6*Canvas.RepeatSpacing", },
+    YOffset = Input { Expression = "-1*Canvas.RowSpacing", },
+  },
+  ViewInfo = OperatorInfo { Pos = { -350, 55 } },
+  
+},
+
+Row6 = sTransform {
+  Inputs = {
+    Input = Input { SourceOp = "Copies", Source = "Output", },
+    XOffset = Input { Expression = "((time-comp.RenderStart)/comp:GetPrefs(\"Comp.FrameFormat.Rate\")*Canvas.Speed*Canvas.CenterRate+0.0*Canvas.RepeatSpacing)-floor(((time-comp.RenderStart)/comp:GetPrefs(\"Comp.FrameFormat.Rate\")*Canvas.Speed*Canvas.CenterRate+0.0*Canvas.RepeatSpacing)/Canvas.RepeatSpacing)*Canvas.RepeatSpacing-6*Canvas.RepeatSpacing", },
+    YOffset = Input { Expression = "0*Canvas.RowSpacing", },
+  },
+  ViewInfo = OperatorInfo { Pos = { -350, 0 } },
+  
+},
+
+Row7 = sTransform {
+  Inputs = {
+    Input = Input { SourceOp = "Copies", Source = "Output", },
+    XOffset = Input { Expression = "((time-comp.RenderStart)/comp:GetPrefs(\"Comp.FrameFormat.Rate\")*Canvas.Speed*Canvas.Above1Rate+0.317*Canvas.RepeatSpacing)-floor(((time-comp.RenderStart)/comp:GetPrefs(\"Comp.FrameFormat.Rate\")*Canvas.Speed*Canvas.Above1Rate+0.317*Canvas.RepeatSpacing)/Canvas.RepeatSpacing)*Canvas.RepeatSpacing-6*Canvas.RepeatSpacing", },
+    YOffset = Input { Expression = "1*Canvas.RowSpacing", },
+  },
+  ViewInfo = OperatorInfo { Pos = { -350, -55 } },
+  
+},
+
+Row8 = sTransform {
+  Inputs = {
+    Input = Input { SourceOp = "Copies", Source = "Output", },
+    XOffset = Input { Expression = "((time-comp.RenderStart)/comp:GetPrefs(\"Comp.FrameFormat.Rate\")*Canvas.Speed*Canvas.Above2Rate+0.634*Canvas.RepeatSpacing)-floor(((time-comp.RenderStart)/comp:GetPrefs(\"Comp.FrameFormat.Rate\")*Canvas.Speed*Canvas.Above2Rate+0.634*Canvas.RepeatSpacing)/Canvas.RepeatSpacing)*Canvas.RepeatSpacing-6*Canvas.RepeatSpacing", },
+    YOffset = Input { Expression = "2*Canvas.RowSpacing", },
+  },
+  ViewInfo = OperatorInfo { Pos = { -350, -110 } },
+  
+},
+
+Row9 = sTransform {
+  Inputs = {
+    Input = Input { SourceOp = "Copies", Source = "Output", },
+    XOffset = Input { Expression = "((time-comp.RenderStart)/comp:GetPrefs(\"Comp.FrameFormat.Rate\")*Canvas.Speed*Canvas.Above3Rate+0.951*Canvas.RepeatSpacing)-floor(((time-comp.RenderStart)/comp:GetPrefs(\"Comp.FrameFormat.Rate\")*Canvas.Speed*Canvas.Above3Rate+0.951*Canvas.RepeatSpacing)/Canvas.RepeatSpacing)*Canvas.RepeatSpacing-6*Canvas.RepeatSpacing", },
+    YOffset = Input { Expression = "3*Canvas.RowSpacing", },
+  },
+  ViewInfo = OperatorInfo { Pos = { -350, -165 } },
+  
+},
+
+Row10 = sTransform {
+  Inputs = {
+    Input = Input { SourceOp = "Copies", Source = "Output", },
+    XOffset = Input { Expression = "((time-comp.RenderStart)/comp:GetPrefs(\"Comp.FrameFormat.Rate\")*Canvas.Speed*Canvas.Above4Rate+0.268*Canvas.RepeatSpacing)-floor(((time-comp.RenderStart)/comp:GetPrefs(\"Comp.FrameFormat.Rate\")*Canvas.Speed*Canvas.Above4Rate+0.268*Canvas.RepeatSpacing)/Canvas.RepeatSpacing)*Canvas.RepeatSpacing-6*Canvas.RepeatSpacing", },
+    YOffset = Input { Expression = "4*Canvas.RowSpacing", },
+  },
+  ViewInfo = OperatorInfo { Pos = { -350, -220 } },
+  
+},
+
+Row11 = sTransform {
+  Inputs = {
+    Input = Input { SourceOp = "Copies", Source = "Output", },
+    XOffset = Input { Expression = "((time-comp.RenderStart)/comp:GetPrefs(\"Comp.FrameFormat.Rate\")*Canvas.Speed*Canvas.Above5Rate+0.585*Canvas.RepeatSpacing)-floor(((time-comp.RenderStart)/comp:GetPrefs(\"Comp.FrameFormat.Rate\")*Canvas.Speed*Canvas.Above5Rate+0.585*Canvas.RepeatSpacing)/Canvas.RepeatSpacing)*Canvas.RepeatSpacing-6*Canvas.RepeatSpacing", },
+    YOffset = Input { Expression = "5*Canvas.RowSpacing", },
+  },
+  ViewInfo = OperatorInfo { Pos = { -350, -275 } },
+  
+},
+
+Row12 = sTransform {
+  Inputs = {
+    Input = Input { SourceOp = "Copies", Source = "Output", },
+    XOffset = Input { Expression = "((time-comp.RenderStart)/comp:GetPrefs(\"Comp.FrameFormat.Rate\")*Canvas.Speed*Canvas.Above6Rate+0.902*Canvas.RepeatSpacing)-floor(((time-comp.RenderStart)/comp:GetPrefs(\"Comp.FrameFormat.Rate\")*Canvas.Speed*Canvas.Above6Rate+0.902*Canvas.RepeatSpacing)/Canvas.RepeatSpacing)*Canvas.RepeatSpacing-6*Canvas.RepeatSpacing", },
+    YOffset = Input { Expression = "6*Canvas.RowSpacing", },
+  },
+  ViewInfo = OperatorInfo { Pos = { -350, -330 } },
+  
+},
+
+Rows = sMerge {
+  Inputs = {
+    Input1 = Input { SourceOp = "Row0", Source = "Output", },
+    Input2 = Input { SourceOp = "Row1", Source = "Output", },
+    Input3 = Input { SourceOp = "Row2", Source = "Output", },
+    Input4 = Input { SourceOp = "Row3", Source = "Output", },
+    Input5 = Input { SourceOp = "Row4", Source = "Output", },
+    Input6 = Input { SourceOp = "Row5", Source = "Output", },
+    Input7 = Input { SourceOp = "Row6", Source = "Output", },
+    Input8 = Input { SourceOp = "Row7", Source = "Output", },
+    Input9 = Input { SourceOp = "Row8", Source = "Output", },
+    Input10 = Input { SourceOp = "Row9", Source = "Output", },
+    Input11 = Input { SourceOp = "Row10", Source = "Output", },
+    Input12 = Input { SourceOp = "Row11", Source = "Output", },
+    Input13 = Input { SourceOp = "Row12", Source = "Output", },
+  },
+  ViewInfo = OperatorInfo { Pos = { -100, 0 } },
+  
+},
+
+Tilt = sTransform {
+  Inputs = {
+    Input = Input { SourceOp = "Rows", Source = "Output", },
+    ZRotation = Input { Value = 22, },
+    XPivot = Input { Value = 0, },
+    YPivot = Input { Value = 0, },
+  },
+  ViewInfo = OperatorInfo { Pos = { 100, 0 } },
+  
+},
+
+Letters = sRender {
+  Inputs = {
+    UseFrameFormatSettings = Input { Value = 1, },
+    Input = Input { SourceOp = "Tilt", Source = "Output", },
+  },
+  ViewInfo = OperatorInfo { Pos = { 300, 0 } },
+  
+},
+
+Ink = Background {
+  Inputs = {
+    UseFrameFormatSettings = Input { Value = 1, },
+    EffectMask = Input { SourceOp = "Letters", Source = "Output", },
+    TopLeftRed = Input { Value = 0.16, },
+    TopLeftGreen = Input { Value = 0.16, },
+    TopLeftBlue = Input { Value = 0.16, },
+    TopLeftAlpha = Input { Value = 1, },
+  },
+  ViewInfo = OperatorInfo { Pos = { 500, 0 } },
+  
+},
+
+Composite = Merge {
+  Inputs = {
+    Background = Input { SourceOp = "Canvas", Source = "Output", },
+    Foreground = Input { SourceOp = "Ink", Source = "Output", },
+  },
+  ViewInfo = OperatorInfo { Pos = { 700, 0 } },
+  
+},
+
+Grain = FilmGrain {
+  Inputs = {
+    Input = Input { SourceOp = "Composite", Source = "Output", },
+    Monochrome = Input { Value = 1, },
+    MasterStrength = Input { Value = 0.025, },
+    MasterXSize = Input { Value = 1.2, },
+    MasterOffset = Input { Expression = "MasterStrength*0.32", },
+  },
+  ViewInfo = OperatorInfo { Pos = { 900, 0 } },
+  
+},
+
+      },
+    },
+  },
+  ActiveTool = "TypeDrift",
+}

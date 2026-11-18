@@ -1,0 +1,48 @@
+{
+	Tools = ordered() {
+		FilmGrainLook = GroupOperator {
+			Inputs = ordered() {
+				MainInput1 = InstanceInput {
+					SourceOp = "Grain",
+					Source = "Input",
+				},
+				Input1 = InstanceInput {
+					SourceOp = "Grain",
+					Source = "MasterStrength",
+					Name = "Strength",
+					Default = 0.04,
+				},
+				Input2 = InstanceInput {
+					SourceOp = "Grain",
+					Source = "MasterXSize",
+					Name = "Size",
+					Default = 1.5,
+				},
+				Input3 = InstanceInput {
+					SourceOp = "Grain",
+					Source = "Monochrome",
+					Name = "Monochrome",
+					Default = 1,
+				},
+			},
+			Outputs = {
+				MainOutput1 = InstanceOutput {
+					SourceOp = "Grain",
+					Source = "Output",
+				},
+			},
+			ViewInfo = GroupInfo { Pos = { 0, 0 } },
+			Tools = ordered() {
+				Grain = FilmGrain {
+					Inputs = {
+						Monochrome = Input { Value = 1, },
+						MasterXSize = Input { Value = 1.5, },
+						MasterStrength = Input { Value = 0.04, },
+					},
+					ViewInfo = OperatorInfo { Pos = { 0, 0 } },
+				},
+			},
+		},
+	},
+	ActiveTool = "FilmGrainLook",
+}

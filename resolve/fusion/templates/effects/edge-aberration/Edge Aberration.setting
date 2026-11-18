@@ -1,0 +1,116 @@
+{
+	Tools = ordered() {
+		EdgeAberration = GroupOperator {
+			Inputs = ordered() {
+				MainInput1 = InstanceInput {
+					SourceOp = "Ghost",
+					Source = "Input",
+				},
+				Input1 = InstanceInput {
+					SourceOp = "CleanZone",
+					Source = "Center",
+					Name = "Center",
+				},
+				Input2 = InstanceInput {
+					SourceOp = "CleanZone",
+					Source = "Width",
+					Name = "Clean Zone",
+					Default = 0.7,
+				},
+				Input3 = InstanceInput {
+					SourceOp = "CleanZone",
+					Source = "SoftEdge",
+					Name = "Softness",
+					Default = 0.2,
+				},
+				Input4 = InstanceInput {
+					SourceOp = "Ghost",
+					Source = "Length",
+					Name = "Ghosting",
+					Default = 0.01,
+				},
+				Input5 = InstanceInput {
+					SourceOp = "FringeRed",
+					Source = "Length",
+					Name = "Color Fringe",
+					Default = 0.008,
+				},
+			},
+			Outputs = {
+				MainOutput1 = InstanceOutput {
+					SourceOp = "FringeBlue",
+					Source = "Output",
+				},
+			},
+			ViewInfo = GroupInfo { Pos = { 0, 0 } },
+			Tools = ordered() {
+				CleanZone = EllipseMask {
+					Inputs = {
+						Filter = Input { Value = FuID { "Fast Gaussian" }, },
+						UseFrameFormatSettings = Input { Value = 1, },
+						ClippingMode = Input { Value = FuID { "None" }, },
+						Center = Input { Value = { 0.5, 0.5 }, },
+						Width = Input { Value = 0.7, },
+						Height = Input { Expression = "Width", },
+						SoftEdge = Input { Value = 0.2, },
+					},
+					ViewInfo = OperatorInfo { Pos = { 0, -66 } },
+				},
+				Ghost = DirectionalBlur {
+					Inputs = {
+						EffectMask = Input {
+							SourceOp = "CleanZone",
+							Source = "Mask",
+						},
+						ApplyMaskInverted = Input { Value = 1, },
+						Type = Input { Value = 3, },
+						Center = Input { Expression = "CleanZone.Center", },
+						Length = Input { Value = 0.01, },
+					},
+					ViewInfo = OperatorInfo { Pos = { 0, 0 } },
+				},
+				FringeRed = DirectionalBlur {
+					Inputs = {
+						EffectMask = Input {
+							SourceOp = "CleanZone",
+							Source = "Mask",
+						},
+						ApplyMaskInverted = Input { Value = 1, },
+						ProcessGreen = Input { Value = 0, },
+						ProcessBlue = Input { Value = 0, },
+						ProcessAlpha = Input { Value = 0, },
+						Type = Input { Value = 3, },
+						Center = Input { Expression = "CleanZone.Center", },
+						Length = Input { Value = 0.008, },
+						Input = Input {
+							SourceOp = "Ghost",
+							Source = "Output",
+						},
+					},
+					ViewInfo = OperatorInfo { Pos = { 110, 0 } },
+				},
+				FringeBlue = DirectionalBlur {
+					Inputs = {
+						EffectMask = Input {
+							SourceOp = "CleanZone",
+							Source = "Mask",
+						},
+						ApplyMaskInverted = Input { Value = 1, },
+						ProcessRed = Input { Value = 0, },
+						ProcessGreen = Input { Value = 0, },
+						ProcessAlpha = Input { Value = 0, },
+						Type = Input { Value = 3, },
+						Center = Input { Expression = "CleanZone.Center", },
+						Length = Input { Expression = "-FringeRed.Length", },
+						Input = Input {
+							SourceOp = "FringeRed",
+							Source = "Output",
+						},
+					},
+					ViewInfo = OperatorInfo { Pos = { 220, 0 } },
+				},
+			},
+		},
+	},
+	ActiveTool = "EdgeAberration",
+}
